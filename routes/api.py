@@ -106,7 +106,7 @@ def rate_module():
         
         module_id = data.get('module_id')
         rating = data.get('rating')
-        comment = data.get('comment', '').strip() or None
+        comment = (data.get('comment') or '').strip() or None
         
         # Validate input
         if not module_id or rating is None:
