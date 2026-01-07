@@ -1,5 +1,8 @@
 # ModPlayer - Daily Mod Music Discovery
 
+> *MAJOR DISCLAIMER* - If it wasn't already completely obvious, this is an extremely vibe-coded experiment via Claude Code.
+> Just putting that out there first and foremost!
+
 A lightweight web-based application for discovering and rating module music files from the Mod Archive. Each day, the app presents a curated selection of 3-5 modules to listen to and rate.
 
 ## Overview
