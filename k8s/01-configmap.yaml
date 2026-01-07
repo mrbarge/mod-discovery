@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: modplayer-config
+  namespace: modplayer
+  labels:
+    app: modplayer
+data:
+  # Flask configuration
+  FLASK_ENV: "production"
+  
+  # Module selection settings
+  DAILY_MODULE_COUNT_MIN: "3"
+  DAILY_MODULE_COUNT_MAX: "5"
+  
+  # Cache settings
+  CACHE_DIR: "/app/cache/modules"
+  CACHE_MAX_AGE_DAYS: "30"
+  
+  # Server settings
+  HOST: "0.0.0.0"
+  PORT: "5000"
+  
+  # Database host (internal service name)
+  DB_HOST: "postgres-service"
+  DB_PORT: "5432"
+  DB_NAME: "modplayer"

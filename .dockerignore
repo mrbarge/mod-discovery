@@ -1,0 +1,70 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Database (will be in volume)
+*.db
+*.sqlite
+*.sqlite3
+
+# Cache
+cache/
+*.pyc
+
+# Logs
+logs/
+*.log
+
+# Documentation (not needed in container)
+README.md
+ARCHITECTURE.md
+docs/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Container files (don't need these in the image)
+Dockerfile
+.dockerignore
+docker-compose.yml
+k8s/

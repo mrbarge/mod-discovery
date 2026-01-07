@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}ModPlayer - Daily Mod Music Discovery{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1>🎵 ModPlayer</h1>
+            <p class="tagline">Your daily dose of tracker music</p>
+            <nav>
+                <a href="/" class="{% if request.path == '/' %}active{% endif %}">Today</a>
+                <a href="/history" class="{% if request.path == '/history' %}active{% endif %}">History</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="container">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer>
+        <div class="container">
+            <p>
+                Powered by <a href="https://modarchive.org" target="_blank" rel="noopener">The Mod Archive</a>
+                | Made with ❤️ for the demoscene
+            </p>
+        </div>
+    </footer>
+
+    <!-- chiptune2.js player library -->
+    <script>
+        // Pre-configure libopenmpt Module
+        var libopenmpt = {
+            locateFile: function(s) {
+                return '{{ url_for("static", filename="lib/") }}' + s;
+            }
+        };
+    </script>
+    <script src="{{ url_for('static', filename='lib/libopenmpt.js') }}"></script>
+    <script src="{{ url_for('static', filename='lib/chiptune2.js') }}"></script>
+
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

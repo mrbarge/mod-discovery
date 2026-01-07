@@ -1,0 +1,37 @@
+---
+# PostgreSQL Data Volume
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+  namespace: modplayer
+  labels:
+    app: modplayer
+    component: database
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  # Optional: Specify storage class
+  # storageClassName: standard
+
+---
+# Module Cache Volume
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: module-cache-pvc
+  namespace: modplayer
+  labels:
+    app: modplayer
+    component: cache
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
+  # Optional: Specify storage class
+  # storageClassName: standard

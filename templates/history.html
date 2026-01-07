@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block title %}History - ModPlayer{% endblock %}
+
+{% block content %}
+<div class="history-page">
+    <h2>Listening History</h2>
+    <p class="subtitle">Review your past selections and ratings</p>
+
+    <div class="filters">
+        <input type="text" id="search-input" placeholder="Search comments..." />
+        <select id="rating-filter">
+            <option value="all">All Ratings</option>
+            <option value="5">5 Stars</option>
+            <option value="4">4+ Stars</option>
+            <option value="3">3+ Stars</option>
+            <option value="rated">Rated Only</option>
+            <option value="unrated">Unrated Only</option>
+        </select>
+    </div>
+
+    <div id="loading" class="loading">
+        <div class="spinner"></div>
+        <p>Loading history...</p>
+    </div>
+
+    <div id="error" class="error" style="display: none;">
+        <p>Failed to load history. Please try again later.</p>
+    </div>
+
+    <div id="history-container" class="history-list" style="display: none;">
+        <!-- History entries will be inserted here by JavaScript -->
+    </div>
+
+    <div id="load-more-container" style="display: none; text-align: center; margin-top: 2rem;">
+        <button id="load-more-btn" class="btn btn-secondary">Load More</button>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/player.js') }}"></script>
+<script src="{{ url_for('static', filename='js/history.js') }}"></script>
+{% endblock %}

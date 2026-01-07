@@ -1,0 +1,77 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: modplayer-db
+    environment:
+      POSTGRES_DB: modplayer
+      POSTGRES_USER: modplayer
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme123}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U modplayer"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - modplayer-network
+
+  # ModPlayer Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: modplayer-app
+    environment:
+      # Database connection (PostgreSQL)
+      DATABASE_URL: postgresql://modplayer:${DB_PASSWORD:-changeme123}@postgres:5432/modplayer
+      
+      # Flask configuration
+      FLASK_ENV: production
+      SECRET_KEY: ${SECRET_KEY:-dev-secret-please-change-in-production}
+      
+      # Module selection settings
+      DAILY_MODULE_COUNT_MIN: ${DAILY_MODULE_COUNT_MIN:-3}
+      DAILY_MODULE_COUNT_MAX: ${DAILY_MODULE_COUNT_MAX:-5}
+      
+      # Cache settings
+      CACHE_DIR: /app/cache/modules
+      CACHE_MAX_AGE_DAYS: ${CACHE_MAX_AGE_DAYS:-30}
+      
+      # Server settings
+      HOST: 0.0.0.0
+      PORT: 5000
+    volumes:
+      - module-cache:/app/cache
+      - app-logs:/app/logs
+    ports:
+      - "5000:5000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:5000/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - modplayer-network
+    restart: unless-stopped
+
+networks:
+  modplayer-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
+    driver: local
+  module-cache:
+    driver: local
+  app-logs:
+    driver: local

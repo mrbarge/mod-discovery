@@ -1,0 +1,33 @@
+# Core Web Framework
+Flask
+flask-cors
+flask-SQLAlchemy
+beautifulsoup4
+gunicorn
+
+# Database
+SQLAlchemy
+psycopg2-binary
+alembic
+
+# HTTP Client
+requests
+
+# Environment Variables
+python-dotenv
+
+# Date/Time
+python-dateutil
+
+# Testing (development)
+pytest
+pytest-flask
+pytest-cov
+
+# Code Quality (development)
+black
+flake8
+pylint
+
+# Type Checking (development)
+mypy
