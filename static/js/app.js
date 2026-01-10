@@ -75,6 +75,8 @@ const App = {
         const sourceBadges = {
             'recent': '🆕 Recent Upload',
             'rated': '⭐ Highly Rated',
+            'favourites': '❤️ Top Favourite',
+            'featured': '🌟 Featured',
             'random': '🎲 Random Pick'
         };
         const sourceBadge = sourceBadges[module.source_type] || '🎵 Module';
@@ -131,21 +133,17 @@ const App = {
     },
     
     setupEventListeners() {
-        // Play/Pause button clicks
+        // Play/Stop button clicks
         document.addEventListener('click', (e) => {
             if (e.target.classList.contains('btn-play')) {
                 const moduleId = parseInt(e.target.dataset.moduleId);
-                const isPaused = e.target.dataset.paused === 'true';
-                const isCurrentlyPlaying = e.target.textContent.includes('Pause');
+                const isCurrentlyPlaying = e.target.textContent.includes('Stop');
 
                 if (isCurrentlyPlaying) {
-                    // Pause the currently playing module
-                    this.pauseModule(moduleId, e.target);
-                } else if (isPaused) {
-                    // Resume the paused module
-                    this.resumeModule(moduleId, e.target);
+                    // Stop the currently playing module
+                    this.stopModule(e.target);
                 } else {
-                    // Play a new module
+                    // Play the module (always restarts from beginning)
                     this.playModule(moduleId, e.target);
                 }
             }
@@ -192,17 +190,10 @@ const App = {
         }
     },
 
-    pauseModule(moduleId, button) {
-        if (window.modulePlayer.pause()) {
+    stopModule(button) {
+        if (window.modulePlayer.stop()) {
             button.textContent = '▶ Play';
-            button.dataset.paused = 'true';
-        }
-    },
-
-    resumeModule(moduleId, button) {
-        if (window.modulePlayer.resume()) {
-            button.textContent = '⏸ Pause';
-            button.dataset.paused = 'false';
+            button.disabled = false;
         }
     },
 
@@ -211,14 +202,22 @@ const App = {
         document.querySelectorAll('.btn-play').forEach(btn => {
             const btnModuleId = parseInt(btn.dataset.moduleId);
             if (btnModuleId === currentModuleId) {
-                btn.textContent = '⏸ Pause';
-                btn.dataset.paused = 'false';
+                btn.textContent = '⏹ Stop';
             } else {
                 btn.textContent = '▶ Play';
-                btn.dataset.paused = 'false';
                 btn.disabled = false;
             }
         });
+    },
+
+    handlePlaybackEnd(moduleId) {
+        // Reset the play button when playback ends
+        console.log('Resetting button state for module', moduleId);
+        const button = document.querySelector(`.btn-play[data-module-id="${moduleId}"]`);
+        if (button) {
+            button.textContent = '▶ Play';
+            button.disabled = false;
+        }
     },
     
     openRatingModal(moduleId) {

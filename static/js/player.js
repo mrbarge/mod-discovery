@@ -32,7 +32,8 @@ class ModulePlayer {
                     // Check if libopenmpt runtime is ready
                     if (typeof libopenmpt !== 'undefined' && libopenmpt.calledRun) {
                         console.log('libopenmpt runtime already initialized');
-                        this.player = new ChiptuneJsPlayer(new ChiptuneJsConfig(-1));
+                        // Use 0 for no repeat (play once) instead of -1 (infinite loop)
+                        this.player = new ChiptuneJsPlayer(new ChiptuneJsConfig(0));
                         console.log('✓ Module player initialized successfully!');
                         resolve(true);
                         return;
@@ -44,7 +45,8 @@ class ModulePlayer {
                         libopenmpt.onRuntimeInitialized = () => {
                             console.log('libopenmpt runtime initialized via callback');
                             try {
-                                this.player = new ChiptuneJsPlayer(new ChiptuneJsConfig(-1));
+                                // Use 0 for no repeat (play once) instead of -1 (infinite loop)
+                                this.player = new ChiptuneJsPlayer(new ChiptuneJsConfig(0));
                                 console.log('✓ Module player initialized successfully!');
                                 resolve(true);
                             } catch (error) {
@@ -78,17 +80,13 @@ class ModulePlayer {
         // Wait for player to initialize
         await this.initPromise;
 
-        // If already playing this module, just resume
-        if (this.currentModule === moduleId && this.isPlaying) {
-            return true;
-        }
-
-        // If playing different module, stop it first
-        if (this.isPlaying) {
+        // Always stop any current playback first
+        if (this.isPlaying || this.currentModule) {
             this.stop();
         }
 
         this.isLoading = true;
+        this.currentModule = moduleId;
 
         try {
             // Fetch module file
@@ -118,9 +116,12 @@ class ModulePlayer {
                 }
 
                 this.player.play(buffer);
-                this.currentModule = moduleId;
                 this.isPlaying = true;
                 console.log(`✓ Playing module ${moduleId}`);
+
+                // Monitor playback state to detect when it ends
+                this.monitorPlayback();
+
                 return true;
             } else {
                 // Fallback: trigger download
@@ -142,38 +143,86 @@ class ModulePlayer {
             this.isLoading = false;
         }
     }
-    
-    pause() {
-        if (this.player && this.player.currentPlayingNode && this.isPlaying) {
-            this.player.currentPlayingNode.pause();
-            this.isPlaying = false;
-            console.log('Playback paused');
-            return true;
-        }
-        return false;
-    }
-
-    resume() {
-        if (this.player && this.player.currentPlayingNode && !this.isPlaying && this.currentModule) {
-            this.player.currentPlayingNode.unpause();
-            this.isPlaying = true;
-            console.log('Playback resumed');
-            return true;
-        }
-        return false;
-    }
 
     stop() {
         if (this.player && this.player.stop) {
             this.player.stop();
             this.isPlaying = false;
             this.currentModule = null;
+
+            // Stop monitoring
+            if (this.monitorInterval) {
+                clearInterval(this.monitorInterval);
+                this.monitorInterval = null;
+            }
+
             console.log('Playback stopped');
             return true;
         }
         return false;
     }
-    
+
+    monitorPlayback() {
+        // Clear any existing monitor
+        if (this.monitorInterval) {
+            clearInterval(this.monitorInterval);
+        }
+
+        // Reset position tracking
+        this.lastPosition = 0;
+
+        // Poll every 500ms to check if playback has ended
+        this.monitorInterval = setInterval(() => {
+            if (!this.isPlaying) {
+                clearInterval(this.monitorInterval);
+                this.monitorInterval = null;
+                return;
+            }
+
+            // Check if the player is still valid
+            if (!this.player || !this.player.currentPlayingNode) {
+                clearInterval(this.monitorInterval);
+                this.monitorInterval = null;
+                return;
+            }
+
+            // Check if the audio source has finished
+            try {
+                const position = this.getPosition();
+                if (position === 0 && this.lastPosition > 0) {
+                    // Song ended, stop it
+                    console.log('Module playback ended');
+                    this.handlePlaybackEnd();
+                }
+                this.lastPosition = position;
+            } catch (e) {
+                // Error accessing node means it probably ended
+                console.log('Playback monitoring error (likely ended):', e);
+                this.handlePlaybackEnd();
+            }
+        }, 500);
+    }
+
+    handlePlaybackEnd() {
+        console.log('Handling playback end');
+        const endedModuleId = this.currentModule;
+
+        // Stop playback
+        this.stop();
+
+        // Notify the app that playback ended
+        if (window.App && window.App.handlePlaybackEnd) {
+            window.App.handlePlaybackEnd(endedModuleId);
+        }
+    }
+
+    getPosition() {
+        if (this.player && this.player.currentPlayingNode && this.player.currentPlayingNode.position) {
+            return this.player.currentPlayingNode.position();
+        }
+        return 0;
+    }
+
     isPlayingModule(moduleId) {
         return this.currentModule === moduleId && this.isPlaying;
     }

@@ -19,10 +19,7 @@ class CuratorService:
     """Service for curating daily module selections."""
     
     def __init__(self):
-        self.min_count = Config.DAILY_MODULE_COUNT_MIN
-        self.max_count = Config.DAILY_MODULE_COUNT_MAX
         self.preferred_formats = Config.PREFERRED_FORMATS
-        self.min_rating = Config.MIN_TOP_RATING
     
     def get_daily_selection(self, selection_date: Optional[date] = None) -> List[Module]:
         """
@@ -69,15 +66,32 @@ class CuratorService:
     def _generate_selection(self, selection_date: date) -> List[Module]:
         """
         Generate a new module selection based on criteria.
-        
+
+        Selects exactly 5 modules:
+        1. Featured module (first unlistened from featured chart)
+        2. Recent upload (random from recent uploads)
+        3. Top rated (random unlistened from random page 1-50)
+        4. Top favourite (random unlistened from random page 1-20)
+        5. Random module
+
         Returns:
             List of Module objects
         """
         selected_modules = []
         selected_ids = set()
-        
-        # 1. Get at least one recent upload
+
+        # 1. Get featured module (first unlistened)
+        featured_module = self._fetch_featured_unlistened()
+        if featured_module:
+            selected_modules.append(featured_module)
+            selected_ids.add(featured_module.id)
+            logger.info(f'Selected featured module: {featured_module.filename}')
+        else:
+            logger.warning('No unlistened featured module found')
+
+        # 2. Get one recent upload
         recent_modules = self._fetch_and_filter_recent()
+        recent_modules = [m for m in recent_modules if m.id not in selected_ids]
         if recent_modules:
             recent_module = random.choice(recent_modules)
             selected_modules.append(recent_module)
@@ -85,41 +99,113 @@ class CuratorService:
             logger.info(f'Selected recent module: {recent_module.filename}')
         else:
             logger.warning('No recent modules found with preferred formats')
-        
-        # 2. Get at least one highly-rated module
-        rated_modules = self._fetch_and_filter_rated()
-        # Filter out already selected
-        rated_modules = [m for m in rated_modules if m.id not in selected_ids]
-        
-        if rated_modules:
-            rated_module = random.choice(rated_modules)
+
+        # 3. Get one highly-rated module (from random page, unlistened)
+        rated_module = self._fetch_rated_unlistened(selected_ids)
+        if rated_module:
             selected_modules.append(rated_module)
             selected_ids.add(rated_module.id)
             logger.info(f'Selected highly-rated module: {rated_module.filename}')
         else:
-            logger.warning('No highly-rated modules found with preferred formats')
-        
-        # 3. Fill remaining slots with random modules
-        target_count = random.randint(self.min_count, self.max_count)
-        remaining_slots = max(0, target_count - len(selected_modules))
-        
-        if remaining_slots > 0:
-            random_modules = self._fetch_and_filter_random(remaining_slots + 5)  # Get extras
-            # Filter out already selected
-            random_modules = [m for m in random_modules if m.id not in selected_ids]
-            
-            # Add random modules up to target count
-            for module in random_modules[:remaining_slots]:
-                selected_modules.append(module)
-                selected_ids.add(module.id)
-                logger.info(f'Selected random module: {module.filename}')
-        
-        # 4. Randomize final order
+            logger.warning('No unlistened highly-rated modules found')
+
+        # 4. Get one top favourite (from random page, unlistened)
+        favourite_module = self._fetch_favourite_unlistened(selected_ids)
+        if favourite_module:
+            selected_modules.append(favourite_module)
+            selected_ids.add(favourite_module.id)
+            logger.info(f'Selected top favourite module: {favourite_module.filename}')
+        else:
+            logger.warning('No unlistened top favourite modules found')
+
+        # 5. Get one random module
+        random_modules = self._fetch_and_filter_random(10)  # Get extras
+        random_modules = [m for m in random_modules if m.id not in selected_ids]
+
+        if random_modules:
+            random_module = random.choice(random_modules)
+            selected_modules.append(random_module)
+            selected_ids.add(random_module.id)
+            logger.info(f'Selected random module: {random_module.filename}')
+        else:
+            logger.warning('No random modules found')
+
+        # 6. Randomize final order
         random.shuffle(selected_modules)
-        
+
         logger.info(f'Generated selection with {len(selected_modules)} modules')
         return selected_modules
     
+    def _is_listened(self, module_id: int) -> bool:
+        """Check if a module has been listened to (has a rating)."""
+        from models import UserRating
+        return UserRating.query.filter_by(module_id=module_id).first() is not None
+
+    def _fetch_featured_unlistened(self) -> Optional[Module]:
+        """Fetch the first unlistened featured module."""
+        try:
+            featured_data = modarchive_service.fetch_featured()
+
+            # Go through featured modules in order, find first unlistened
+            for data in featured_data:
+                if not self._is_listened(data['id']):
+                    # Check if it matches preferred format
+                    if data.get('format', '').lower() in [fmt.lower() for fmt in self.preferred_formats]:
+                        module = self._get_or_create_module(data)
+                        if module:
+                            return module
+
+            return None
+        except Exception as e:
+            logger.error(f'Error fetching featured module: {e}')
+            return None
+
+    def _fetch_rated_unlistened(self, excluded_ids: set) -> Optional[Module]:
+        """Fetch an unlistened highly-rated module from a random page."""
+        try:
+            # Fetch from random page (1-50)
+            rated_data = modarchive_service.fetch_top_rated(min_rating=10, max_page=50)
+            filtered_data = modarchive_service.filter_by_format(rated_data, self.preferred_formats)
+
+            # Filter out already selected and listened modules
+            unlistened = [
+                data for data in filtered_data
+                if data['id'] not in excluded_ids and not self._is_listened(data['id'])
+            ]
+
+            if unlistened:
+                # Pick a random one from the page
+                selected_data = random.choice(unlistened)
+                return self._get_or_create_module(selected_data)
+
+            return None
+        except Exception as e:
+            logger.error(f'Error fetching rated unlistened module: {e}')
+            return None
+
+    def _fetch_favourite_unlistened(self, excluded_ids: set) -> Optional[Module]:
+        """Fetch an unlistened top favourite module from a random page."""
+        try:
+            # Fetch from random page (1-20)
+            favourite_data = modarchive_service.fetch_top_favourites(max_page=20)
+            filtered_data = modarchive_service.filter_by_format(favourite_data, self.preferred_formats)
+
+            # Filter out already selected and listened modules
+            unlistened = [
+                data for data in filtered_data
+                if data['id'] not in excluded_ids and not self._is_listened(data['id'])
+            ]
+
+            if unlistened:
+                # Pick a random one from the page
+                selected_data = random.choice(unlistened)
+                return self._get_or_create_module(selected_data)
+
+            return None
+        except Exception as e:
+            logger.error(f'Error fetching favourite unlistened module: {e}')
+            return None
+
     def _fetch_and_filter_recent(self) -> List[Module]:
         """Fetch recent uploads and filter by preferred formats."""
         try:
@@ -135,26 +221,6 @@ class CuratorService:
             return modules
         except Exception as e:
             logger.error(f'Error fetching recent modules: {e}')
-            return []
-    
-    def _fetch_and_filter_rated(self) -> List[Module]:
-        """Fetch highly-rated modules and filter by preferred formats."""
-        try:
-            rated_data = modarchive_service.fetch_top_rated(
-                min_rating=self.min_rating,
-                limit=50
-            )
-            filtered_data = modarchive_service.filter_by_format(rated_data, self.preferred_formats)
-            
-            modules = []
-            for data in filtered_data:
-                module = self._get_or_create_module(data)
-                if module:
-                    modules.append(module)
-            
-            return modules
-        except Exception as e:
-            logger.error(f'Error fetching rated modules: {e}')
             return []
     
     def _fetch_and_filter_random(self, count: int) -> List[Module]:

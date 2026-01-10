@@ -30,13 +30,11 @@ class Config:
     SQLALCHEMY_ECHO = DEBUG
     
     # Module selection
-    DAILY_MODULE_COUNT_MIN = int(os.getenv('DAILY_MODULE_COUNT_MIN', '3'))
-    DAILY_MODULE_COUNT_MAX = int(os.getenv('DAILY_MODULE_COUNT_MAX', '5'))
+    DAILY_MODULE_COUNT = 5  # Fixed at 5 modules per day
     PREFERRED_FORMATS: List[str] = os.getenv(
         'PREFERRED_FORMATS',
         'mod,xm,s3m,it'
     ).split(',')
-    MIN_TOP_RATING = int(os.getenv('MIN_TOP_RATING', '9'))
     
     # Cache settings
     CACHE_DIR = Path(os.getenv('CACHE_DIR', str(BASE_DIR / 'cache' / 'modules')))

@@ -139,21 +139,23 @@ class ModArchiveService:
             logger.error(f'Error fetching recent uploads: {e}')
             return []
     
-    def fetch_top_rated(self, min_rating: int = 9, limit: int = 50) -> List[Dict]:
+    def fetch_top_rated(self, min_rating: int = 10, max_page: int = 50) -> List[Dict]:
         """
-        Fetch highly-rated modules.
+        Fetch highly-rated modules from a random page.
 
         Args:
-            min_rating: Minimum rating (default: 9)
-            limit: Maximum number of modules to return
+            min_rating: Minimum rating (default: 10)
+            max_page: Maximum page number to randomly select from (default: 50)
 
         Returns:
-            List of module metadata dictionaries
+            List of module metadata dictionaries from the random page
         """
-        url = f'{self.base_url}/index.php?request=view_by_rating_comments&query={min_rating}'
+        # Pick a random page
+        page = random.randint(1, max_page)
+        url = f'{self.base_url}/index.php?request=view_by_rating_comments&query={min_rating}&page={page}#mods'
 
         try:
-            logger.info(f'Fetching top-rated modules (>={min_rating}) from {url}')
+            logger.info(f'Fetching top-rated modules (>={min_rating}) from page {page}: {url}')
             response = self.session.get(url, timeout=self.timeout)
             response.raise_for_status()
 
@@ -166,9 +168,6 @@ class ModArchiveService:
             # First try list items (newer format)
             list_items = soup.find_all('li')
             for item in list_items:
-                if len(modules) >= limit:
-                    break
-
                 module = self._parse_module_entry(item)
                 if module and module['id'] not in seen_ids:
                     module['source_type'] = 'rated'
@@ -181,9 +180,6 @@ class ModArchiveService:
                 for table in tables:
                     rows = table.find_all('tr')
                     for row in rows:
-                        if len(modules) >= limit:
-                            break
-
                         module = self._parse_module_entry(row)
                         if module and module['id'] not in seen_ids:
                             module['source_type'] = 'rated'
@@ -193,7 +189,7 @@ class ModArchiveService:
                     if modules:
                         break
 
-            logger.info(f'Found {len(modules)} top-rated modules')
+            logger.info(f'Found {len(modules)} top-rated modules on page {page}')
             self._rate_limit()
             return modules
 
@@ -201,6 +197,134 @@ class ModArchiveService:
             logger.error(f'Error fetching top-rated modules: {e}')
             return []
     
+    def fetch_featured(self) -> List[Dict]:
+        """
+        Fetch featured modules from the featured chart.
+
+        Returns:
+            List of module metadata dictionaries from the featured chart
+        """
+        url = f'{self.base_url}/index.php?request=view_chart&query=featured'
+        modules = []
+        seen_ids = set()
+        page = 1
+
+        try:
+            logger.info(f'Fetching featured modules from {url}')
+
+            # We may need to check multiple pages to find unlistened modules
+            # Start with page 1 and continue if needed
+            while True:
+                page_url = f'{url}&page={page}' if page > 1 else url
+                response = self.session.get(page_url, timeout=self.timeout)
+                response.raise_for_status()
+
+                soup = BeautifulSoup(response.content, 'html.parser')
+
+                # Try both table rows and list items
+                page_modules = []
+
+                # First try list items (newer format)
+                list_items = soup.find_all('li')
+                for item in list_items:
+                    module = self._parse_module_entry(item)
+                    if module and module['id'] not in seen_ids:
+                        module['source_type'] = 'featured'
+                        page_modules.append(module)
+                        seen_ids.add(module['id'])
+
+                # If no modules found, try table format (older format)
+                if not page_modules:
+                    tables = soup.find_all('table')
+                    for table in tables:
+                        rows = table.find_all('tr')
+                        for row in rows:
+                            module = self._parse_module_entry(row)
+                            if module and module['id'] not in seen_ids:
+                                module['source_type'] = 'featured'
+                                page_modules.append(module)
+                                seen_ids.add(module['id'])
+
+                        if page_modules:
+                            break
+
+                modules.extend(page_modules)
+
+                # If we found modules on this page, return them
+                # The curator will filter for unlistened ones
+                if page_modules:
+                    logger.info(f'Found {len(modules)} featured modules')
+                    self._rate_limit()
+                    return modules
+
+                # No more modules found, stop searching
+                break
+
+            logger.info(f'Found {len(modules)} featured modules')
+            self._rate_limit()
+            return modules
+
+        except Exception as e:
+            logger.error(f'Error fetching featured modules: {e}')
+            return []
+
+    def fetch_top_favourites(self, max_page: int = 20) -> List[Dict]:
+        """
+        Fetch top favourites from a random page.
+
+        Args:
+            max_page: Maximum page number to randomly select from (default: 20)
+
+        Returns:
+            List of module metadata dictionaries from the random page
+        """
+        # Pick a random page
+        page = random.randint(1, max_page)
+        url = f'{self.base_url}/index.php?request=view_top_favourites&page={page}#mods'
+
+        try:
+            logger.info(f'Fetching top favourites from page {page}: {url}')
+            response = self.session.get(url, timeout=self.timeout)
+            response.raise_for_status()
+
+            soup = BeautifulSoup(response.content, 'html.parser')
+
+            # Try both table rows and list items
+            modules = []
+            seen_ids = set()
+
+            # First try list items (newer format)
+            list_items = soup.find_all('li')
+            for item in list_items:
+                module = self._parse_module_entry(item)
+                if module and module['id'] not in seen_ids:
+                    module['source_type'] = 'favourites'
+                    modules.append(module)
+                    seen_ids.add(module['id'])
+
+            # If no modules found, try table format (older format)
+            if not modules:
+                tables = soup.find_all('table')
+                for table in tables:
+                    rows = table.find_all('tr')
+                    for row in rows:
+                        module = self._parse_module_entry(row)
+                        if module and module['id'] not in seen_ids:
+                            module['source_type'] = 'favourites'
+                            modules.append(module)
+                            seen_ids.add(module['id'])
+
+                    if modules:
+                        break
+
+            logger.info(f'Found {len(modules)} top favourites on page {page}')
+            self._rate_limit()
+            return modules
+
+        except Exception as e:
+            logger.error(f'Error fetching top favourites: {e}')
+            return []
+
     def fetch_random_modules(self, count: int = 5) -> List[Dict]:
         """
         Fetch random modules.
@@ -275,21 +399,22 @@ class ModArchiveService:
     def filter_by_format(self, modules: List[Dict], preferred_formats: List[str]) -> List[Dict]:
         """
         Filter modules by preferred formats.
-        
+
         Args:
             modules: List of module dictionaries
             preferred_formats: List of preferred format extensions (e.g., ['mod', 'xm'])
-            
+
         Returns:
             Filtered list of modules
         """
         filtered = []
-        
+
         for module in modules:
-            module_format = module.get('format', '').lower()
-            if module_format in [fmt.lower() for fmt in preferred_formats]:
-                filtered.append(module)
-        
+            module_format = module.get('format')
+            if module_format:
+                if module_format.lower() in [fmt.lower() for fmt in preferred_formats]:
+                    filtered.append(module)
+
         logger.info(f'Filtered {len(modules)} modules to {len(filtered)} with preferred formats')
         return filtered
 
