@@ -69,8 +69,7 @@ podman run -d \
 podman run -d \
   --name modplayer \
   -p 5000:5000 \
-  -e DAILY_MODULE_COUNT_MIN=4 \
-  -e DAILY_MODULE_COUNT_MAX=6 \
+  -e DAILY_MODULE_COUNT=6 \
   -e CACHE_MAX_AGE_DAYS=60 \
   -v modplayer-data:/app/data:Z \
   -v modplayer-cache:/app/cache:Z \
